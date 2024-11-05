@@ -1,42 +1,85 @@
 from selenium import webdriver  # Импортируем модуль webdriver из библиотеки Selenium для управления браузером
 from selenium.webdriver.common.by import By  # Импортируем класс By для указания методов поиска элементов
-from selenium.webdriver import Keys  # Импортируем Keys для использования клавиш клавиатуры
+from selenium.webdriver.common.keys import Keys  # Импортируем класс Keys для работы с клавишами клавиатуры
 import time  # Импортируем модуль time для работы с временными задержками
 
-user = input("Введите поисковый запрос: ")
-browser = webdriver.Firefox()
 
-browser.get("https://ru.wikipedia.org/wiki/%D0%97%D0%B0%D0%B3%D0%BB%D0%B0%D0%B2%D0%BD%D0%B0%D1%8F_%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D0%B0")
-
-assert "Википедия" in browser.title
-
-search_box = browser.find_element(By.ID, "searchInput")
-
-search_box.send_keys(user)
-search_box.send_keys(Keys.ENTER)
-
-print("Что будем делать дальше?")
-print("Нажмите 1, если хотите просмотреть параграфы")
-print("Нажмите 2, если хотите перейти на одну из связанных страниц")
-print("Нажмите 3, если хотите выйти")
-
-
-answer = int(input("Ваш выбор: "))
-
-if answer == 1:
-    paragraphs = browser.find_elements(By.TAG_NAME, "p")
+# Функция для получения и отображения параграфов текущей статьи
+def get_article(browser):
+    paragraphs = browser.find_elements(By.TAG_NAME, "p")  # Находим все элементы с тегом <p> (параграфы)
     for paragraph in paragraphs:
-        print(paragraph.text)
+        print(paragraph.text)  # Выводим текст каждого параграфа
+    print("\n--- Конец параграфов ---\n")  # Разделитель для конца параграфов
 
-if answer == 2:
-    links = browser.find_elements(By.TAG_NAME, "a")
+
+# Функция для получения и отображения ссылок текущей статьи
+def get_links(browser):
+    links = browser.find_elements(By.CSS_SELECTOR,
+                                  "#bodyContent a")  # Находим все ссылки в основном содержимом страницы
+    valid_links = []  # Список для хранения валидных ссылок
+    link_texts = []  # Список для хранения текста ссылок
+
     for link in links:
-        print(link.get_attribute("href"))
+        href = link.get_attribute("href")  # Получаем URL ссылки
+        text = link.text.strip()  # Получаем текст ссылки и убираем лишние пробелы
+        # Фильтруем ссылки: исключаем файлы и служебные страницы, оставляя только статьи
+        if href and text and href.startswith("https://ru.wikipedia.org/wiki/") and not href.startswith(
+                "https://ru.wikipedia.org/wiki/%D0%A4%D0%B0%D0%B9%D0%BB:"):
+            valid_links.append(href)  # Добавляем валидную ссылку в список
+            link_texts.append(text)  # Добавляем текст ссылки в список
 
-if answer == 3:
-    print("Всего доброго!")
-    browser.get("https://ru.wikipedia.org/wiki/%D0%97%D0%B0%D0%B3%D0%BB%D0%B0%D0%B2%D0%BD%D0%B0%D1%8F_%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D0%B0")
+    # Выводим текст всех валидных ссылок с порядковыми номерами
+    for idx, text in enumerate(link_texts):
+        print(f"{idx + 1}: {text}")
+    return valid_links  # Возвращаем список валидных ссылок
 
 
-#browser.quit()
+# Главная функция программы
+def main():
+    user = input("Введите поисковый запрос: ")  # Запрашиваем у пользователя поисковый запрос
+    browser = webdriver.Firefox()  # Запускаем браузер Firefox
 
+    try:
+        # Переходим на главную страницу Википедии
+        browser.get("https://ru.wikipedia.org/wiki/Заглавная_страница")
+        assert "Википедия" in browser.title  # Проверяем, что заголовок страницы содержит "Википедия"
+
+        search_box = browser.find_element(By.ID, "searchInput")  # Находим поле ввода поиска
+        search_box.send_keys(user)  # Вводим запрос в поле поиска
+        search_box.send_keys(Keys.ENTER)  # Нажимаем Enter для начала поиска
+
+        # Основной цикл программы
+        while True:
+            # Предлагаем пользователю варианты действий
+            print("\nЧто будем делать дальше?")
+            print("1: Просмотреть параграфы текущей статьи")
+            print("2: Перейти на одну из связанных страниц")
+            print("3: Выйти из программы")
+
+            answer = input("Ваш выбор: ")  # Считываем выбор пользователя
+
+            if answer == "1":
+                get_article(browser)  # Вызываем функцию для отображения параграфов
+            elif answer == "2":
+                valid_links = get_links(browser)  # Получаем список валидных ссылок
+                if valid_links:
+                    link_choice = int(input("Введите номер ссылки для перехода: ")) - 1  # Пользователь выбирает ссылку
+                    if 0 <= link_choice < len(valid_links):
+                        browser.get(valid_links[link_choice])  # Переходим по выбранной ссылке
+                    else:
+                        print("Некорректный выбор.")  # Обрабатываем некорректный ввод
+                else:
+                    print("Связанных страниц не найдено.")  # Если ссылок нет, выводим сообщение
+            elif answer == "3":
+                print("Всего доброго!")  # Завершаем работу программы
+                break  # Выходим из цикла
+            else:
+                print("Некорректный ввод, попробуйте снова.")  # Сообщение об ошибке ввода
+
+    finally:
+        browser.quit()  # Закрываем браузер после завершения работы программы
+
+
+# Запуск главной функции, если скрипт исполняется напрямую
+if __name__ == "__main__":
+    main()
